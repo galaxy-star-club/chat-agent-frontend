@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceRepository": "backend",
+  "sourceRevision": "af17baef754fd41ffac19d41ad84e1fd16fd4c37",
+  "files": {
+    "health.ts": "80757dc3065eb6d7a0459f9d2b08e4758acb6f0ee18f00b47d72ec6fe608597a"
+  }
+}
