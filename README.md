@@ -1,36 +1,29 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Agentic Chat frontend
 
-## Getting Started
+Plan 01 provides a neutral shell and a real API health connection panel. Chat, authentication, uploads and provider execution are not enabled. Product page implementation requires the user's screenshots and approval of a later numbered plan.
 
-First, run the development server:
+## Local setup
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Use Node.js 24 and pnpm 10.33.2. Install with `pnpm install --frozen-lockfile`. Copy `.env.example` to `.env.local` if needed. Start the separate backend repository on port 3001, then run `pnpm dev` here on port 3000.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`NEXT_PUBLIC_API_BASE_URL` is the public backend **origin**, for example `http://localhost:3001`, without credentials, path, query or fragment. Development defaults to that local origin. Production requires an explicit value at **build time**; missing or invalid values fail the build. Values are embedded in browser bundles and changing them requires a rebuild. Never put secrets in public environment variables.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Checks
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `pnpm check` runs generated contract drift checks, ESLint, strict typechecking and Vitest/RTL/MSW tests.
+- `NEXT_PUBLIC_API_BASE_URL=http://localhost:3001 pnpm build` builds production assets.
+- For the real-browser test, run the actual backend on port 3001 with `http://localhost:3000` allowed by its origin policy, build the frontend as above, then run `pnpm test:e2e`. Install a Playwright Chromium browser separately if unavailable. The test starts or reuses the production frontend on port 3000 and makes real browser requests to the backend; it does not mock the API.
 
-## Learn More
+CI installs the frozen lockfile, checks and builds. Real-backend browser tests run locally because the independent backend repository is not provisioned by this workflow.
 
-To learn more about Next.js, take a look at the following resources:
+## Structure and contracts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+App Router pages compose feature modules. The workspace component calls its TanStack Query health hook, which calls the module API service and shared typed HTTP transport. Only that transport performs first-party fetch. It validates backend-owned Zod contracts, handles cancellation and an eight-second timeout, normalizes safe errors and exposes validated request IDs. Transient failures receive at most two automatic retries; configuration, forbidden and malformed responses do not.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`src/generated/contracts` is owned by the backend exporter. Do not hand-edit snapshots; use the backend contract export/check scripts. UI primitives follow Shadcn conventions with installed Radix Slot/CVA utilities.
 
-## Deploy on Vercel
+## Future hosting configuration (publication deferred)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Frontend and backend are independent Next.js applications and require two separate Vercel projects. Use each repository as its project's root. Configure the frontend build's `NEXT_PUBLIC_API_BASE_URL` with the exact backend deployment origin. Configure the backend allowed-origin environment with the exact frontend origin according to the backend README. A preview frontend has a distinct origin: explicitly register that exact preview origin, and rebuild the frontend against its intended backend. Never use wildcard preview allowlists or assume shared cookies. The health call omits credentials.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+No publication, deployment, account creation, paid services or credentials are part of this plan.

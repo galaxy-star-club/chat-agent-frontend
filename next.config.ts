@@ -1,17 +1,11 @@
 import type { NextConfig } from "next";
+import { resolveApiBaseUrl } from "./src/lib/config";
+
+resolveApiBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL, process.env.NODE_ENV);
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
   turbopack: {
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
-      },
-    },
+    rules: { "*.css": { loaders: ["@tailwindcss/turbopack"], as: "*.css" } },
   },
 };
-
 export default nextConfig;
