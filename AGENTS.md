@@ -10,7 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Agentic Chat frontend
 
-- Current authorization: Plan 01 local foundations only. No login, chat engine, uploads, database, provider calls, publication or deployment yet.
+- Current authorization: Plan 02 local Clerk authentication foundations only. No chat engine, uploads, database, provider calls, publication or deployment yet.
 - Read the focused module and installed version's documentation before editing. Use Context7 if connected; otherwise use official documentation. Never invent APIs.
 - Apply Ponytail: reuse, minimize, preserve validation/security/accessibility/tests. Required project layers take precedence.
 - Ask the user for screenshots before creating each product page. The initial basic neutral shell is the only exception.
