@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getToken } from "@clerk/nextjs";
 import { apiErrorSchema } from "@/generated/contracts/health";
 
 export type HttpErrorKind = "configuration" | "network" | "timeout" | "aborted" | "http" | "invalid-response";
@@ -20,7 +21,7 @@ export function isTransientError(error: unknown): boolean {
   );
 }
 
-export async function getJson<T>(url: string, schema: z.ZodType<T>, options: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<T> {
+export async function getJson<T>(url: string, schema: z.ZodType<T>, options: { signal?: AbortSignal; timeoutMs?: number; auth?: "session" } = {}): Promise<T> {
   const controller = new AbortController();
   let timedOut = false;
   const abort = () => controller.abort();
@@ -28,7 +29,13 @@ export async function getJson<T>(url: string, schema: z.ZodType<T>, options: { s
   if (options.signal?.aborted) abort();
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, options.timeoutMs ?? 8_000);
   try {
-    const response = await fetch(url, { signal: controller.signal, credentials: "omit", cache: "no-store" });
+    const token = options.auth === "session" ? await getToken() : undefined;
+    const response = await fetch(url, {
+      signal: controller.signal,
+      credentials: "omit",
+      cache: "no-store",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
     const headerId = response.headers.get("x-request-id");
     const requestId = headerId && z.uuid().safeParse(headerId).success ? headerId : undefined;
     const body: unknown = await response.json().catch((error: unknown) => {

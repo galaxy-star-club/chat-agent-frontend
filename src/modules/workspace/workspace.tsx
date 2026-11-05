@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { HttpError } from "@/lib/http";
 import { useHealth } from "./hooks/use-health";
 
-export function Workspace() {
+export function Workspace({ authControls }: { authControls?: React.ReactNode }) {
   const health = useHealth();
   const error = health.error instanceof HttpError ? health.error : undefined;
   const configurationError = error?.kind === "configuration" || error?.code === "CONFIGURATION_ERROR";
@@ -12,7 +12,10 @@ export function Workspace() {
     <div className="min-h-screen bg-zinc-50 text-zinc-950">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:bg-white focus:p-3">Skip to content</a>
       <header className="border-b border-zinc-200 bg-white px-6 py-5">
-        <div className="mx-auto max-w-3xl text-lg font-semibold">Agentic Chat</div>
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
+          <div className="text-lg font-semibold">Agentic Chat</div>
+          {authControls}
+        </div>
       </header>
       <main id="main" className="mx-auto max-w-3xl px-6 py-12">
         <h1 className="text-2xl font-semibold tracking-tight">Workspace foundation</h1>
