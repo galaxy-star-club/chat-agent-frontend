@@ -1,6 +1,6 @@
 # Agentic Chat frontend
 
-Through Plan 04, the neutral shell has Clerk authentication controls, a real API health connection, backend-owned shared contract snapshots, and safe centralized API error mapping. Chat, uploads and provider execution are not enabled. Product page implementation requires the user's screenshots and approval of a later numbered plan.
+Through Plan 08, signed-in users can send a plain-text message from the conversation workspace. The send stores the user message and shows the run status returned by the API. It does not display an assistant reply. Sign-in stays on Clerk. No uploads, model calls, publication, or deployment were added.
 
 ## Local setup
 
@@ -20,7 +20,7 @@ CI installs the frozen lockfile, checks and builds. Real-backend browser tests r
 
 ## Structure and contracts
 
-App Router pages compose feature modules. The workspace component calls its TanStack Query health hook, which calls the module API service and shared typed HTTP transport. Only that transport performs first-party fetch. It validates backend-owned Zod contracts, handles cancellation and an eight-second timeout, normalizes safe errors and exposes validated request IDs. A backend error message is used only when the complete error envelope validates; malformed bodies stay hidden behind a generic HTTP message. Transient failures receive at most two automatic retries; configuration, forbidden and malformed responses do not. The health request remains public. Protected module API functions opt into `auth: "session"` on the shared transport, which adds the current Clerk session token as a bearer token while continuing to omit cookies on cross-origin requests.
+App Router pages compose feature modules. The signed-out shell calls its TanStack Query health hook. The signed-in conversation workspace calls the chat query hooks, which call the chat API module and the shared typed HTTP transport. Only that transport performs first-party fetch. It validates backend-owned Zod contracts, handles cancellation and an eight-second timeout, normalizes safe errors and exposes validated request IDs. A backend error message is used only when the complete error envelope validates; malformed bodies stay hidden behind a generic HTTP message. Transient failures receive at most two automatic retries; configuration, forbidden and malformed responses do not. The health request remains public. Protected module API functions opt into `auth: "session"` on the shared transport, which adds the current Clerk session token as a bearer token while continuing to omit cookies on cross-origin requests.
 
 `src/generated/contracts` is owned by the backend exporter. Do not hand-edit snapshots; use the backend contract export/check scripts. UI primitives follow Shadcn conventions with installed Radix Slot/CVA utilities.
 

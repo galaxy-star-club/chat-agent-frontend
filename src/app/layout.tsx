@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Agentic Chat",
-  description: "Agentic Chat workspace foundation",
+  description: "Authenticated conversation workspace",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

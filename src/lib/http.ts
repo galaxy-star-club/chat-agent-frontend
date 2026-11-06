@@ -66,8 +66,8 @@ export async function requestJson<T>(url: string, schema: z.ZodType<T>, options:
     return result.data;
   } catch (error) {
     if (error instanceof HttpError) throw error;
-    if (options.signal?.aborted) throw new HttpError("aborted", "The connection check was cancelled.");
-    if (timedOut) throw new HttpError("timeout", "The connection check timed out.");
+    if (options.signal?.aborted) throw new HttpError("aborted", "The request was cancelled.");
+    if (timedOut) throw new HttpError("timeout", "The request timed out.");
     throw new HttpError("network", "The API could not be reached. Check the server address and connection.");
   } finally {
     clearTimeout(timer);

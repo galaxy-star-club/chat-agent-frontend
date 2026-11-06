@@ -9,7 +9,7 @@ import {
   updateFavoriteRequestSchema,
   type ChatListQuery,
 } from "@/generated/contracts/chats";
-import { messageListResponseSchema } from "@/generated/contracts/messages";
+import { messageAdmissionResponseSchema, messageListResponseSchema, submitMessageRequestSchema } from "@/generated/contracts/messages";
 import { cursorPaginationQuerySchema } from "@/generated/contracts/pagination";
 import { getApiBaseUrl } from "@/lib/config";
 import { HttpError, requestJson } from "@/lib/http";
@@ -17,6 +17,7 @@ import { HttpError, requestJson } from "@/lib/http";
 const chatResponseSchema = apiSuccessSchema(chatSchema);
 const chatListSchema = apiSuccessSchema(chatListResponseSchema);
 const messageListSchema = apiSuccessSchema(messageListResponseSchema);
+const messageAdmissionSchema = apiSuccessSchema(messageAdmissionResponseSchema);
 const deleteChatSchema = apiSuccessSchema(z.unknown());
 
 export type ChatFilters = Partial<Pick<ChatListQuery, "favorite" | "limit" | "query">>;
@@ -60,6 +61,15 @@ export function deleteChat(chatId: string) {
 export function setChatFavorite(chatId: string, input: z.input<typeof updateFavoriteRequestSchema>) {
   return requestJson(apiUrl(`${chatPath(chatId)}/favorite`), chatResponseSchema, {
     auth: "session", body: updateFavoriteRequestSchema.parse(input), method: "PATCH",
+  });
+}
+
+export function submitMessage(chatId: string, input: z.input<typeof submitMessageRequestSchema>) {
+  return requestJson(apiUrl(`${chatPath(chatId)}/messages`), messageAdmissionSchema, {
+    auth: "session",
+    method: "POST",
+    body: submitMessageRequestSchema.parse(input),
+    timeoutMs: 20_000,
   });
 }
 

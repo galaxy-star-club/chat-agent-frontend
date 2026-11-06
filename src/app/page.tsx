@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { AuthControls } from "@/components/auth-controls";
-import { Workspace } from "@/modules/workspace/workspace";
+import { HomeScreen } from "@/modules/workspace/home-screen";
 
 export default function Home() {
-  return <Workspace authControls={<Suspense fallback={null}><AuthControls /></Suspense>} />;
+  return <HomeScreen authControls={<Suspense fallback={null}><AuthControls /></Suspense>} />;
 }

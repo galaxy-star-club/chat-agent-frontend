@@ -1,6 +1,5 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MessageRecord } from "@/generated/contracts/messages";
-import type { CursorPageInfo } from "@/generated/contracts/pagination";
 import { isTransientError } from "@/lib/http";
 import {
   createChat,
@@ -9,8 +8,11 @@ import {
   listChats,
   listMessages,
   setChatFavorite,
+  submitMessage,
   type ChatFilters,
 } from "../api/chats";
+
+export type { ChatFilters };
 
 const retry = (failureCount: number, error: unknown) => failureCount < 2 && isTransientError(error);
 const retryDelay = (attempt: number) => Math.min(500 * 2 ** attempt, 2_000);
@@ -22,42 +24,52 @@ export const chatQueryKeys = {
   messages: (chatId: string, limit: number) => ["chats", chatId, "messages", limit] as const,
 };
 
-export function useChats(filters: ChatFilters = {}) {
+export function useChats(filters: ChatFilters = {}, options?: { enabled?: boolean }) {
   return useInfiniteQuery({
     queryKey: chatQueryKeys.list(filters),
     queryFn: ({ pageParam, signal }) => listChats(filters, pageParam, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.data.pageInfo.nextCursor ?? undefined,
+    enabled: options?.enabled ?? true,
     retry,
     retryDelay,
   });
 }
 
-export function useChat(chatId: string) {
+export function useChat(chatId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: chatQueryKeys.detail(chatId),
     queryFn: ({ signal }) => getChat(chatId, signal),
+    enabled: options?.enabled ?? true,
     retry,
     retryDelay,
   });
 }
 
-export function useMessages(chatId: string, limit = 50) {
+export function useMessages(chatId: string, limit = 50, options?: { enabled?: boolean }) {
   return useInfiniteQuery({
     queryKey: chatQueryKeys.messages(chatId, limit),
     queryFn: ({ pageParam, signal }) => listMessages(chatId, { cursor: pageParam, limit }, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.data.pageInfo.nextCursor ?? undefined,
+    enabled: options?.enabled ?? true,
     retry,
     retryDelay,
   });
 }
 
-type MessagePage = { data: { items: MessageRecord[]; pageInfo: CursorPageInfo } };
-
 // The API returns each page oldest-to-newest; reversing only pages keeps a newly arrived message last.
-export function chronologicalMessages(data: InfiniteData<MessagePage, string | undefined> | undefined): MessageRecord[] {
+export function chronologicalMessages(data: { pages: Array<{ data: { items: MessageRecord[] } }> } | undefined): MessageRecord[] {
   return data?.pages.toReversed().flatMap((page) => page.data.items) ?? [];
+}
+
+export function useSubmitMessage() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ chatId, ...input }: { chatId: string; idempotencyKey: string; text: string }) => submitMessage(chatId, input),
+    retry: false,
+    onSuccess: (response) => client.invalidateQueries({ queryKey: ["chats", response.data.chatId, "messages"] }),
+  });
 }
 
 export function useCreateChat() {

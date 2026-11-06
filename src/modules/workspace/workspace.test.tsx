@@ -20,7 +20,7 @@ it("announces loading and a truthful connected state", async () => {
   expect(screen.getByText("Checking API connection…")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Checking…" })).toBeDisabled();
   expect(await screen.findByText("API connected")).toBeInTheDocument();
-  expect(screen.getByText(/Health endpoint responded successfully. Chat is not yet enabled./)).toBeInTheDocument();
+  expect(screen.getByText(/Health endpoint responded successfully. Sign in to open your tasks./)).toBeInTheDocument();
 });
 it("lets a user recover after a non-retried HTTP error", async () => {
   let calls = 0;

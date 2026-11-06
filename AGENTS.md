@@ -10,7 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Agentic Chat frontend
 
-- Current authorization: Plan 06 added only the chat API/query data layer. No product page, chat engine, uploads, provider calls, publication or deployment. Do not start Plan 07 without permission.
+- Current authorization: Plan 08 makes the conversation composer submit an owned message. It shows the returned run status and does not invent an assistant reply. No uploads, model calls, publication, or deployment. Do not start Plan 09 without permission.
 - Read the focused module and installed version's documentation before editing. Use Context7 if connected; otherwise use official documentation. Never invent APIs.
 - Apply Ponytail: reuse, minimize, preserve validation/security/accessibility/tests. Required project layers take precedence.
 - Ask the user for screenshots before creating each product page. The initial basic neutral shell is the only exception.
