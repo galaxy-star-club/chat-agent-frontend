@@ -44,7 +44,7 @@ export async function getJson<T>(url: string, schema: z.ZodType<T>, options: { s
     });
     if (!response.ok) {
       const parsed = apiErrorSchema.safeParse(body);
-      throw new HttpError("http", `The API returned HTTP ${response.status}.`, response.status,
+      throw new HttpError("http", parsed.success ? parsed.data.error.message : `The API returned HTTP ${response.status}.`, response.status,
         parsed.success ? parsed.data.error.requestId : requestId,
         parsed.success ? parsed.data.error.code : undefined);
     }

@@ -42,9 +42,22 @@ describe("typed HTTP transport", () => {
     server.use(http.get(url, () => HttpResponse.error()));
     await expect(getJson(url, healthResponseSchema)).rejects.toMatchObject({ kind: "network" });
   });
-  it("handles HTTP status before success schema and keeps a validated request ID", async () => {
+  it("uses the validated backend error and keeps its request ID", async () => {
     server.use(http.get(url, () => HttpResponse.json({ error: { code: "ORIGIN_NOT_ALLOWED", message: "Denied", requestId: id } }, { status: 403 })));
-    await expect(getJson(url, healthResponseSchema)).rejects.toMatchObject({ kind: "http", status: 403, code: "ORIGIN_NOT_ALLOWED", requestId: id });
+    await expect(getJson(url, healthResponseSchema)).rejects.toMatchObject({ kind: "http", status: 403, message: "Denied", code: "ORIGIN_NOT_ALLOWED", requestId: id });
+  });
+  it("hides malformed error fields and keeps only a validated header request ID", async () => {
+    server.use(http.get(url, () => HttpResponse.json(
+      { error: { code: "UNKNOWN", message: "private details", requestId: "unsafe-id" } },
+      { status: 500, headers: { "x-request-id": id } },
+    )));
+    await expect(getJson(url, healthResponseSchema)).rejects.toMatchObject({
+      kind: "http",
+      status: 500,
+      message: "The API returned HTTP 500.",
+      requestId: id,
+      code: undefined,
+    });
   });
   it("normalizes non-JSON errors without displaying raw content", async () => {
     server.use(http.get(url, () => new HttpResponse("private details", { status: 503, headers: { "x-request-id": id } })));
