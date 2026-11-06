@@ -21,7 +21,15 @@ export function isTransientError(error: unknown): boolean {
   );
 }
 
-export async function getJson<T>(url: string, schema: z.ZodType<T>, options: { signal?: AbortSignal; timeoutMs?: number; auth?: "session" } = {}): Promise<T> {
+export type JsonRequestOptions = {
+  auth?: "session";
+  body?: unknown;
+  method?: "DELETE" | "PATCH" | "POST";
+  signal?: AbortSignal;
+  timeoutMs?: number;
+};
+
+export async function requestJson<T>(url: string, schema: z.ZodType<T>, options: JsonRequestOptions = {}): Promise<T> {
   const controller = new AbortController();
   let timedOut = false;
   const abort = () => controller.abort();
@@ -31,10 +39,15 @@ export async function getJson<T>(url: string, schema: z.ZodType<T>, options: { s
   try {
     const token = options.auth === "session" ? await getToken() : undefined;
     const response = await fetch(url, {
+      method: options.method,
       signal: controller.signal,
       credentials: "omit",
       cache: "no-store",
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      headers: {
+        ...(options.body === undefined ? {} : { "Content-Type": "application/json" }),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
     });
     const headerId = response.headers.get("x-request-id");
     const requestId = headerId && z.uuid().safeParse(headerId).success ? headerId : undefined;
@@ -60,4 +73,8 @@ export async function getJson<T>(url: string, schema: z.ZodType<T>, options: { s
     clearTimeout(timer);
     options.signal?.removeEventListener("abort", abort);
   }
+}
+
+export function getJson<T>(url: string, schema: z.ZodType<T>, options: Omit<JsonRequestOptions, "body" | "method"> = {}) {
+  return requestJson(url, schema, options);
 }
