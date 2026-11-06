@@ -1,9 +1,10 @@
 {
   "schemaVersion": "1.0.0",
   "sourceRepository": "backend",
-  "sourceRevision": "276bdc096e3b51ae5b633bef256d293d1d01b9a5",
+  "sourceRevision": "33d2c0390cd7c171d1c95d0c470ae1bd0a54b18b",
   "files": {
     "auth.ts": "9a62a570d88d563f59a4d491b53e6c0573d93a02e7bf63be6b53eca142e26025",
-    "health.ts": "83160eb21110d657ee47c149f8a018291e03ee4c889c496539f33b9789c5a2ea"
+    "database-readiness.ts": "b1185b2a567e71fd42a1942979036c18588c5f20abd03b207c58d0c397d62f66",
+    "health.ts": "38ab3c5c8029b196a47e202a3dbd13197fe1b161938fd83b0c65e92d7cc3b8ff"
   }
 }
