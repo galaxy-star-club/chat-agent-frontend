@@ -9,10 +9,12 @@ assert.equal(manifest.sourceRepository, "backend");
 assert.deepEqual(Object.keys(manifest.files), [
   "api.ts",
   "auth.ts",
+  "chats.ts",
   "content.ts",
   "database-readiness.ts",
   "health.ts",
   "json.ts",
+  "messages.ts",
   "pagination.ts",
   "run.ts",
   "tools.ts",

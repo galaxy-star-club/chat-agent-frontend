@@ -19,7 +19,7 @@ const chatListSchema = apiSuccessSchema(chatListResponseSchema);
 const messageListSchema = apiSuccessSchema(messageListResponseSchema);
 const deleteChatSchema = apiSuccessSchema(z.unknown());
 
-export type ChatFilters = Pick<ChatListQuery, "favorite" | "limit" | "query">;
+export type ChatFilters = Partial<Pick<ChatListQuery, "favorite" | "limit" | "query">>;
 export type CursorRequest = z.output<typeof cursorPaginationQuerySchema>;
 
 function apiUrl(path: string, query?: Record<string, string | number | boolean | undefined>) {
