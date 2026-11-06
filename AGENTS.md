@@ -10,7 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Agentic Chat frontend
 
-- Current authorization: Plan 03 is complete with a generated database-readiness contract snapshot only; it added no frontend product behavior. No chat engine, uploads, provider calls, publication or deployment yet. Do not start Plan 04 without permission.
+- Current authorization: Plan 04 shared contract snapshots and safe API error mapping are complete. No chat engine, uploads, provider calls, publication or deployment yet. Do not start Plan 05 without permission.
 - Read the focused module and installed version's documentation before editing. Use Context7 if connected; otherwise use official documentation. Never invent APIs.
 - Apply Ponytail: reuse, minimize, preserve validation/security/accessibility/tests. Required project layers take precedence.
 - Ask the user for screenshots before creating each product page. The initial basic neutral shell is the only exception.
