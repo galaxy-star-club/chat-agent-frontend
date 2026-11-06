@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 
 const directory = new URL("../src/generated/contracts/", import.meta.url);
 const manifest = JSON.parse(await readFile(new URL("manifest.json", directory), "utf8"));
@@ -18,6 +18,11 @@ assert.deepEqual(Object.keys(manifest.files), [
   "tools.ts",
   "trace.ts",
 ]);
+assert.deepEqual(
+  (await readdir(directory)).sort(),
+  [...Object.keys(manifest.files), "manifest.json"].sort(),
+  "Generated contracts contain unexpected or missing files. Regenerate the complete snapshot from the backend.",
+);
 for (const [file, expectedHash] of Object.entries(manifest.files)) {
   const source = await readFile(new URL(file, directory), "utf8");
   assert.equal(createHash("sha256").update(source).digest("hex"), expectedHash,
