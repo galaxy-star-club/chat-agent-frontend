@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import Uppy from "@uppy/core";
+import Transloadit from "@uppy/transloadit";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowUp, Calendar, Ellipsis, Folder, ListTodo, PanelLeftClose, PanelLeftOpen, Paperclip, Plus, Search, Square, Star, Trash } from "lucide-react";
 import { AppFrame } from "@/components/app-frame";
@@ -11,6 +13,7 @@ import type { RunStatus } from "@/generated/contracts/run";
 import { HttpError } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { MessageBlocks } from "./message-blocks";
+import { completeUpload, createUploadOptions } from "./api/chats";
 import { formatClock, formatTaskTime, taskTitle } from "./task-time";
 import {
   chronologicalMessages,
@@ -280,17 +283,20 @@ function Composer({ placeholder, chatId, busy = false, onAdmitted }: {
 }) {
   const [text, setText] = useState("");
   const [error, setError] = useState<unknown>(null);
+  const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const intent = useRef<{ text: string; key: string } | null>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const submit = useSubmitMessage();
   const create = useCreateChat();
   const sending = submit.isPending || create.isPending;
-  const canSend = !busy && text.trim().length > 0 && text.length <= plainTextMaxCharacters && !sending;
+  const canSend = !busy && (text.trim().length > 0 || uploadedUrls.length > 0) && text.length <= plainTextMaxCharacters && !sending && !uploading;
   const fieldId = chatId ? `composer-${chatId}` : "composer-home";
 
   async function send() {
     if (!canSend) return;
-    const value = text;
+    const value = [text.trim(), uploadedUrls.length ? `Attachments:\n${uploadedUrls.map((url) => `- ${url}`).join("\n")}` : ""].filter(Boolean).join("\n\n");
     const key = intent.current?.text === value ? intent.current.key : crypto.randomUUID();
     intent.current = { text: value, key };
     setError(null);
@@ -303,10 +309,40 @@ function Composer({ placeholder, chatId, busy = false, onAdmitted }: {
       const response = await submit.mutateAsync({ chatId: targetId, idempotencyKey: key, text: value });
       onAdmitted({ chatId: response.data.chatId, runId: response.data.runId, status: response.data.status });
       setText("");
+      setUploadedUrls([]);
       intent.current = null;
     } catch (sendError) {
       setError(sendError);
       fieldRef.current?.focus();
+    }
+  }
+
+  async function upload(files: FileList | null) {
+    if (!files?.length || busy || uploading) return;
+    setError(null);
+    setUploading(true);
+    let uppy: Uppy | undefined;
+    try {
+      let targetId = chatId;
+      if (!targetId) targetId = (await create.mutateAsync({})).data.id;
+      const selected = Array.from(files);
+      const options = await createUploadOptions(targetId, selected.map((file) => ({ name: file.name, type: file.type, size: file.size })));
+      uppy = new Uppy({ autoProceed: false, restrictions: { maxNumberOfFiles: 4, maxFileSize: 512 * 1024 * 1024, allowedFileTypes: ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime", "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4"] } });
+      uppy.use(Transloadit, { waitForEncoding: true, assemblyOptions: { params: options.data.params, signature: options.data.signature } });
+      selected.forEach((file) => uppy!.addFile({ name: file.name, type: file.type, data: file }));
+      const assemblyUrl = await new Promise<string>((resolve, reject) => {
+        uppy!.once("transloadit:complete", (assembly: { assembly_ssl_url?: string }) => assembly.assembly_ssl_url ? resolve(assembly.assembly_ssl_url) : reject(new Error("Upload did not return an assembly URL.")));
+        uppy!.once("error", reject);
+        void uppy!.upload();
+      });
+      const completed = await completeUpload(targetId, { assemblyUrl, attachmentIds: options.data.attachments.map((attachment) => attachment.id) });
+      setUploadedUrls((current) => [...current, ...completed.data.attachments.flatMap((attachment) => attachment.url ? [attachment.url] : [])]);
+    } catch (uploadError) {
+      setError(uploadError);
+    } finally {
+      uppy?.destroy();
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
     }
   }
 
@@ -316,7 +352,8 @@ function Composer({ placeholder, chatId, busy = false, onAdmitted }: {
       <label htmlFor={fieldId} className="sr-only">Message</label>
       <textarea ref={fieldRef} id={fieldId} rows={2} value={text} maxLength={plainTextMaxCharacters} placeholder={placeholder} aria-invalid={error ? true : undefined} aria-describedby={error ? "composer-error" : "composer-note"} onChange={(event) => setText(event.target.value)} className="w-full resize-none bg-transparent px-2 py-1 text-sm outline-none" />
       <div className="flex items-center justify-between">
-        <Button type="button" variant="ghost" size="icon" disabled aria-label="Attach a file"><Paperclip aria-hidden="true" className="size-4" /></Button>
+        <input ref={fileRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,audio/mpeg,audio/wav,audio/ogg,audio/mp4" multiple onChange={(event) => void upload(event.target.files)} />
+        <Button type="button" variant="ghost" size="icon" disabled={busy || sending || uploading} aria-label="Attach media files" onClick={() => fileRef.current?.click()}><Paperclip aria-hidden="true" className="size-4" /></Button>
         <Button type="button" size="icon" disabled={!canSend} aria-label="Send message" onClick={() => void send()}><ArrowUp aria-hidden="true" className="size-4" /></Button>
       </div>
       {copy ? (
@@ -327,7 +364,7 @@ function Composer({ placeholder, chatId, busy = false, onAdmitted }: {
           <Button type="button" className="mt-2" disabled={sending} onClick={() => void send()}>Retry send</Button>
         </div>
       ) : (
-        <p id="composer-note" className="px-2 text-xs text-muted-foreground">{busy ? "A reply is in progress." : "Attachments are not available yet. Enter adds a new line."}</p>
+        <p id="composer-note" className="px-2 text-xs text-muted-foreground">{busy ? "A reply is in progress." : uploading ? "Uploading media…" : uploadedUrls.length ? `${uploadedUrls.length} media file${uploadedUrls.length === 1 ? "" : "s"} attached.` : "Attach image, video, or audio files up to 512 MB each."}</p>
       )}
     </div>
   );

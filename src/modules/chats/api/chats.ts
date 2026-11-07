@@ -21,6 +21,11 @@ const messageListSchema = apiSuccessSchema(messageListResponseSchema);
 const messageAdmissionSchema = apiSuccessSchema(messageAdmissionResponseSchema);
 const agentRunSchema = apiSuccessSchema(agentRunRecordSchema);
 const deleteChatSchema = apiSuccessSchema(z.unknown());
+const uploadedAttachmentSchema = z.strictObject({
+  id: z.uuid(), filename: z.string(), mediaType: z.string(), byteSize: z.number(), position: z.number(), status: z.enum(["pending", "ready", "failed"]), url: z.url().nullable(),
+});
+const uploadOptionsSchema = apiSuccessSchema(z.strictObject({ params: z.string(), signature: z.string(), attachments: z.array(uploadedAttachmentSchema) }));
+const completeUploadSchema = apiSuccessSchema(z.strictObject({ attachments: z.array(uploadedAttachmentSchema) }));
 
 export type ChatFilters = Partial<Pick<ChatListQuery, "favorite" | "limit" | "query">>;
 export type CursorRequest = z.output<typeof cursorPaginationQuerySchema>;
@@ -73,6 +78,14 @@ export function submitMessage(chatId: string, input: z.input<typeof submitMessag
     body: submitMessageRequestSchema.parse(input),
     timeoutMs: 20_000,
   });
+}
+
+export function createUploadOptions(chatId: string, files: Array<{ name: string; type: string; size: number }>) {
+  return requestJson(apiUrl(`${chatPath(chatId)}/attachments/options`), uploadOptionsSchema, { auth: "session", method: "POST", body: { files }, timeoutMs: 20_000 });
+}
+
+export function completeUpload(chatId: string, input: { assemblyUrl: string; attachmentIds: string[] }) {
+  return requestJson(apiUrl(`${chatPath(chatId)}/attachments/complete`), completeUploadSchema, { auth: "session", method: "POST", body: input, timeoutMs: 20_000 });
 }
 
 export function getAgentRun(chatId: string, runId: string, signal?: AbortSignal) {

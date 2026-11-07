@@ -11,7 +11,7 @@ export function MessageBlocks({ blocks }: { blocks: ContentBlock[] }) {
 }
 
 function Block({ block }: { block: ContentBlock }) {
-  if (block.type === "text") return <p className="whitespace-pre-wrap break-words">{block.text}</p>;
+  if (block.type === "text") return <p className="whitespace-pre-wrap break-words">{linkText(block.text)}</p>;
   if (block.type === "thinking" || block.type === "reasoning") {
     return (
       <details className="rounded-md border border-border px-3 py-2">
@@ -35,4 +35,11 @@ function Block({ block }: { block: ContentBlock }) {
     );
   }
   return null;
+}
+
+function linkText(text: string) {
+  return text.split(/(https:\/\/[^\s]+)/g).map((part, index) => /^https:\/\//.test(part)
+    ? <a key={index} className="underline underline-offset-2" href={part} rel="noopener noreferrer" target="_blank">{part}</a>
+    : part,
+  );
 }
