@@ -13,7 +13,7 @@ import type { RunStatus } from "@/generated/contracts/run";
 import { HttpError } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { MessageBlocks } from "./message-blocks";
-import { completeUpload, createUploadOptions } from "./api/chats";
+import { completeUpload, createUploadOptions, streamAgentRun } from "./api/chats";
 import { formatClock, formatTaskTime, taskTitle } from "./task-time";
 import {
   chronologicalMessages,
@@ -30,6 +30,7 @@ import {
 } from "./hooks/use-chats";
 
 type Admission = { chatId: string; runId: string; status: RunStatus };
+type MessagePages = { pages: Array<{ data: { items: MessageRecord[] } }>; pageParams: unknown[] };
 const activeStatuses = new Set<RunStatus>(["pending", "running", "waiting"]);
 
 type View = "home" | "tasks" | "conversation";
@@ -516,16 +517,43 @@ function SelectedTask({ headingRef, chatId, sidebarOpen, onShowSidebar, confirmI
   onAdmitted: (admission: Admission) => void;
 }) {
   const client = useQueryClient();
-  const chat = useChat(chatId, { refetchWhileActive: true });
+  const chat = useChat(chatId);
   const hintedRunId = chat.data?.data.activeRunId ?? admission?.runId ?? null;
   const hintedRun = useAgentRun(chatId, hintedRunId);
-  const hintedStatus = hintedRun.data?.data.status;
-  const pollMessages = Boolean(hintedRunId) && (!hintedStatus || activeStatuses.has(hintedStatus));
-  const messages = useMessages(chatId, 50, { refetchInterval: pollMessages ? 500 : false });
+  const messages = useMessages(chatId, 50);
   const historicalRun = useAgentRun(chatId, hintedRunId ? null : latestRunId(chronologicalMessages(messages.data)));
   const run = hintedRunId ? hintedRun : historicalRun;
   const runStatus = run.data?.data.status;
   const savedTitle = chat.data?.data.title ?? null;
+  const streamedRun = useRef<string | null>(null);
+  useEffect(() => {
+    if (!hintedRunId || streamedRun.current === hintedRunId) return;
+    streamedRun.current = hintedRunId;
+    const controller = new AbortController();
+    void streamAgentRun(chatId, hintedRunId, (message) => {
+      client.setQueryData<MessagePages>(chatQueryKeys.messages(chatId, 50), (current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          pages: current.pages.map((page, index) => index !== 0 ? page : {
+            ...page,
+            data: {
+              ...page.data,
+              items: page.data.items.some((item) => item.id === message.id)
+                ? page.data.items.map((item) => item.id === message.id ? message : item)
+                : [message, ...page.data.items],
+            },
+          }),
+        };
+      });
+    }, controller.signal).catch(() => undefined).finally(() => {
+      void client.invalidateQueries({ queryKey: chatQueryKeys.detail(chatId) });
+      void client.invalidateQueries({ queryKey: ["chats", chatId, "messages"] });
+      void client.invalidateQueries({ queryKey: ["chats", chatId, "runs"] });
+      void client.invalidateQueries({ queryKey: ["chats", "list"] });
+    });
+    return () => controller.abort();
+  }, [chatId, client, hintedRunId, messages.data]);
   useEffect(() => {
     if (!savedTitle) return;
     void client.invalidateQueries({ queryKey: ["chats", "list"] });

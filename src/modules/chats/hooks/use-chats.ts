@@ -1,6 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MessageRecord } from "@/generated/contracts/messages";
-import type { RunStatus } from "@/generated/contracts/run";
 import { isTransientError } from "@/lib/http";
 import {
   createChat,
@@ -65,17 +64,12 @@ export function useMessages(chatId: string, limit = 50, options?: { enabled?: bo
   });
 }
 
-const activeRun = new Set<RunStatus>(["pending", "running", "waiting"]);
-
 export function useAgentRun(chatId: string, runId: string | null) {
   return useQuery({
     queryKey: ["chats", chatId, "runs", runId],
     queryFn: ({ signal }) => getAgentRun(chatId, runId ?? "", signal),
     enabled: Boolean(runId),
-    refetchInterval: (query) => {
-      const status = query.state.data?.data.status;
-      return !status || activeRun.has(status) ? 1_000 : false;
-    },
+    refetchInterval: false,
     retry,
     retryDelay,
   });
