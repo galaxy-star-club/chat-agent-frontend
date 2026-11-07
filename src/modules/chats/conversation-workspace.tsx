@@ -7,13 +7,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArrowUp, Calendar, Ellipsis, Folder, ListTodo, PanelLeftClose, PanelLeftOpen, Paperclip, Plus, Search, Sparkles, Square, Star, Trash } from "lucide-react";
 import { AppFrame } from "@/components/app-frame";
 import { Button } from "@/components/ui/button";
-import type { ChatRecord } from "@/generated/contracts/chats";
+import { chatIdSchema, type ChatRecord } from "@/generated/contracts/chats";
 import { plainTextMaxCharacters, type MessageRecord } from "@/generated/contracts/messages";
 import type { RunStatus } from "@/generated/contracts/run";
 import { HttpError } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { MessageBlocks } from "./message-blocks";
-import { completeUpload, createUploadOptions, streamAgentRun } from "./api/chats";
+import { completeUpload, createUploadOptions } from "./api/chats";
 import { formatClock, formatTaskTime, taskTitle } from "./task-time";
 import {
   chronologicalMessages,
@@ -30,7 +30,6 @@ import {
 } from "./hooks/use-chats";
 
 type Admission = { chatId: string; runId: string; status: RunStatus };
-type MessagePages = { pages: Array<{ data: { items: MessageRecord[] } }>; pageParams: unknown[] };
 const activeStatuses = new Set<RunStatus>(["pending", "running", "waiting"]);
 
 type View = "home" | "tasks" | "conversation";
@@ -94,6 +93,20 @@ export function ConversationWorkspace({ authControls }: { authControls?: React.R
 
   useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current); }, []);
   useEffect(() => {
+    const readChatId = () => {
+      const parsed = chatIdSchema.safeParse(new URLSearchParams(window.location.search).get("chatId"));
+      return parsed.success ? parsed.data : null;
+    };
+    const syncFromUrl = () => {
+      const chatId = readChatId();
+      setSelectedId(chatId);
+      setView(chatId ? "conversation" : "home");
+    };
+    syncFromUrl();
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
+  }, []);
+  useEffect(() => {
     if (!opened.current) { opened.current = true; return; }
     headingRef.current?.focus();
   }, [view, selectedId]);
@@ -101,8 +114,7 @@ export function ConversationWorkspace({ authControls }: { authControls?: React.R
   const createTask = useCallback(async () => {
     if (creating.isPending) return;
     const response = await creating.mutateAsync({});
-    setSelectedId(response.data.id);
-    setView("conversation");
+    openChat(response.data.id);
     setNotice("Task created.");
   }, [creating]);
 
@@ -131,16 +143,26 @@ export function ConversationWorkspace({ authControls }: { authControls?: React.R
   }
 
   function openChat(chatId: string) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("chatId", chatId);
+    window.history.pushState(null, "", url);
     setSelectedId(chatId);
     setView("conversation");
     setConfirmId(null);
   }
 
+  function closeChat() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("chatId");
+    window.history.pushState(null, "", url);
+    setSelectedId(null);
+    setView("home");
+  }
+
   async function removeTask(chatId: string) {
     await deleting.mutateAsync(chatId);
     setConfirmId(null);
-    setSelectedId((current) => (current === chatId ? null : current));
-    setView("home");
+    if (selectedId === chatId) closeChat();
     setNotice("Task deleted.");
   }
 
@@ -252,12 +274,12 @@ export function ConversationWorkspace({ authControls }: { authControls?: React.R
             onFavorite={toggleFavorite}
             pendingFavorite={favorite.isPending}
             deleting={deleting.isPending}
-            onBack={() => { setSelectedId(null); setView("home"); }}
+            onBack={closeChat}
             admission={admission?.chatId === selectedId ? admission : null}
             onAdmitted={(next) => { setAdmission(next); setNotice(runStatusText[next.status]); }}
           />
         ) : (
-          <HomeView headingRef={headingRef} sidebarOpen={sidebarOpen} onShowSidebar={() => setSidebarOpen(true)} listError={recent.isError && !recent.data ? recent.error : undefined} onRetry={() => void recent.refetch()} showClock={isClient} onAdmitted={(next) => { setAdmission(next); setSelectedId(next.chatId); setView("conversation"); setNotice(runStatusText[next.status]); }} />
+          <HomeView headingRef={headingRef} sidebarOpen={sidebarOpen} onShowSidebar={() => setSidebarOpen(true)} listError={recent.isError && !recent.data ? recent.error : undefined} onRetry={() => void recent.refetch()} showClock={isClient} onAdmitted={(next) => { setAdmission(next); openChat(next.chatId); setNotice(runStatusText[next.status]); }} />
         )}
       </main>
     </AppFrame>
@@ -517,43 +539,16 @@ function SelectedTask({ headingRef, chatId, sidebarOpen, onShowSidebar, confirmI
   onAdmitted: (admission: Admission) => void;
 }) {
   const client = useQueryClient();
-  const chat = useChat(chatId);
+  const chat = useChat(chatId, { refetchWhileActive: true });
   const hintedRunId = chat.data?.data.activeRunId ?? admission?.runId ?? null;
   const hintedRun = useAgentRun(chatId, hintedRunId);
-  const messages = useMessages(chatId, 50);
+  const hintedStatus = hintedRun.data?.data.status;
+  const pollMessages = Boolean(hintedRunId) && (!hintedStatus || activeStatuses.has(hintedStatus));
+  const messages = useMessages(chatId, 50, { refetchInterval: pollMessages ? 500 : false });
   const historicalRun = useAgentRun(chatId, hintedRunId ? null : latestRunId(chronologicalMessages(messages.data)));
   const run = hintedRunId ? hintedRun : historicalRun;
   const runStatus = run.data?.data.status;
   const savedTitle = chat.data?.data.title ?? null;
-  const streamedRun = useRef<string | null>(null);
-  useEffect(() => {
-    if (!hintedRunId || streamedRun.current === hintedRunId) return;
-    streamedRun.current = hintedRunId;
-    const controller = new AbortController();
-    void streamAgentRun(chatId, hintedRunId, (message) => {
-      client.setQueryData<MessagePages>(chatQueryKeys.messages(chatId, 50), (current) => {
-        if (!current) return current;
-        return {
-          ...current,
-          pages: current.pages.map((page, index) => index !== 0 ? page : {
-            ...page,
-            data: {
-              ...page.data,
-              items: page.data.items.some((item) => item.id === message.id)
-                ? page.data.items.map((item) => item.id === message.id ? message : item)
-                : [message, ...page.data.items],
-            },
-          }),
-        };
-      });
-    }, controller.signal).catch(() => undefined).finally(() => {
-      void client.invalidateQueries({ queryKey: chatQueryKeys.detail(chatId) });
-      void client.invalidateQueries({ queryKey: ["chats", chatId, "messages"] });
-      void client.invalidateQueries({ queryKey: ["chats", chatId, "runs"] });
-      void client.invalidateQueries({ queryKey: ["chats", "list"] });
-    });
-    return () => controller.abort();
-  }, [chatId, client, hintedRunId, messages.data]);
   useEffect(() => {
     if (!savedTitle) return;
     void client.invalidateQueries({ queryKey: ["chats", "list"] });

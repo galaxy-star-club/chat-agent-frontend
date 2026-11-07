@@ -79,14 +79,3 @@ export function getJson<T>(url: string, schema: z.ZodType<T>, options: Omit<Json
   return requestJson(url, schema, options);
 }
 
-export async function requestSessionStream(url: string, signal?: AbortSignal): Promise<Response> {
-  const token = await getToken({ skipCache: true });
-  const response = await fetch(url, {
-    credentials: "include",
-    cache: "no-store",
-    signal,
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!response.ok || !response.body) throw new HttpError("http", `The API returned HTTP ${response.status}.`, response.status);
-  return response;
-}

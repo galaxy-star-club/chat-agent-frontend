@@ -9,11 +9,11 @@ import {
   updateFavoriteRequestSchema,
   type ChatListQuery,
 } from "@/generated/contracts/chats";
-import { messageAdmissionResponseSchema, messageListResponseSchema, messageSchema, submitMessageRequestSchema, type MessageRecord } from "@/generated/contracts/messages";
+import { messageAdmissionResponseSchema, messageListResponseSchema, submitMessageRequestSchema } from "@/generated/contracts/messages";
 import { cursorPaginationQuerySchema } from "@/generated/contracts/pagination";
 import { agentRunRecordSchema } from "@/generated/contracts/run";
 import { getApiBaseUrl } from "@/lib/config";
-import { HttpError, requestJson, requestSessionStream } from "@/lib/http";
+import { HttpError, requestJson } from "@/lib/http";
 
 const chatResponseSchema = apiSuccessSchema(chatSchema);
 const chatListSchema = apiSuccessSchema(chatListResponseSchema);
@@ -90,32 +90,6 @@ export function completeUpload(chatId: string, input: { assemblyUrl: string; att
 
 export function getAgentRun(chatId: string, runId: string, signal?: AbortSignal) {
   return requestJson(apiUrl(`${chatPath(chatId)}/runs/${chatIdSchema.parse(runId)}`), agentRunSchema, { auth: "session", signal });
-}
-
-export async function streamAgentRun(chatId: string, runId: string, onDraft: (message: MessageRecord) => void, signal?: AbortSignal) {
-  const response = await requestSessionStream(apiUrl(`${chatPath(chatId)}/runs/${chatIdSchema.parse(runId)}/stream`), signal);
-  const body = response.body;
-  if (!body) throw new HttpError("invalid-response", "The API stream did not include a response body.");
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    buffer += decoder.decode(value, { stream: !done });
-    let boundary = buffer.indexOf("\n\n");
-    while (boundary >= 0) {
-      const event = buffer.slice(0, boundary);
-      buffer = buffer.slice(boundary + 2);
-      const name = event.match(/^event: (.+)$/m)?.[1];
-      const payload = event.match(/^data: (.+)$/m)?.[1];
-      if (name === "draft" && payload) {
-        const parsed = messageSchema.safeParse(JSON.parse(payload));
-        if (parsed.success) onDraft(parsed.data);
-      }
-      boundary = buffer.indexOf("\n\n");
-    }
-    if (done) return;
-  }
 }
 
 export function listMessages(chatId: string, input: CursorRequest, signal?: AbortSignal) {

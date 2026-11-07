@@ -1,31 +1,51 @@
 # Agentic Chat frontend
 
-Signed-in users can send a plain-text message from the conversation workspace. The workspace reloads the persisted run and assistant reply, including partial output and a safe failure message. The browser does not call a model. Sign-in stays on Clerk. No uploads, publication, or deployment were added.
+Next.js chat UI for authenticated users. It uses Clerk and TanStack Query to render persisted assistant replies while they are generated.
 
-## Local setup
+## Run locally
 
-Use Node.js 24 and pnpm 10.33.2. Install with `pnpm install --frozen-lockfile`. Copy `.env.example` to `.env` if needed. Start the separate backend repository on port 3001, then run `pnpm dev` here on port 3000.
+Requires Node.js 24 and pnpm 10. Start the backend first on port `3001`.
 
-`NEXT_PUBLIC_API_BASE_URL` is the public backend **origin**, for example `http://localhost:3001`, without credentials, path, query or fragment. Development defaults to that local origin. Production requires an explicit value at **build time**; missing or invalid values fail the build. Values are embedded in browser bundles and changing them requires a rebuild. Never put secrets in public environment variables.
+```sh
+pnpm install --frozen-lockfile
+cp .env.example .env.local
+pnpm dev
+```
 
-Create or select a Clerk application, then replace the `.env` placeholders for `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` with its development keys. The publishable key is browser-visible; the secret key is server-only and must never use the `NEXT_PUBLIC_` prefix or be committed. Clerk's hosted modal handles sign-in and sign-up, so this plan adds no custom authentication pages.
+The app runs at `http://localhost:3000`. Configure:
 
-## Checks
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
+CLERK_SECRET_KEY=
+```
 
-- `pnpm check` runs generated contract drift checks, ESLint, strict typechecking and Vitest/RTL/MSW tests.
-- `NEXT_PUBLIC_API_BASE_URL=http://localhost:3001 pnpm build` builds production assets.
-- For the real-browser test, run the actual backend on port 3001 with `http://localhost:3000` allowed by its origin policy, build the frontend as above, then run `pnpm test:e2e`. Install a Playwright Chromium browser separately if unavailable. The test starts or reuses the production frontend on port 3000 and makes real browser requests to the backend; it does not mock the API.
+`NEXT_PUBLIC_API_BASE_URL` is the backend origin only. It is included in the browser build, so change it before building or deploying. Never put server secrets in `NEXT_PUBLIC_*` variables.
 
-CI installs the frozen lockfile, checks and builds. Real-backend browser tests run locally because the independent backend repository is not provisioned by this workflow.
+Useful commands:
 
-## Structure and contracts
+```sh
+pnpm check
+pnpm build
+pnpm test:e2e
+```
 
-App Router pages compose feature modules. The signed-out shell calls its TanStack Query health hook. The signed-in conversation workspace calls the chat query hooks, which call the chat API module and the shared typed HTTP transport. Only that transport performs first-party fetch. It validates backend-owned Zod contracts, handles cancellation and an eight-second timeout, normalizes safe errors and exposes validated request IDs. A backend error message is used only when the complete error envelope validates; malformed bodies stay hidden behind a generic HTTP message. Transient failures receive at most two automatic retries; configuration, forbidden and malformed responses do not. The health request remains public. Protected module API functions opt into `auth: "session"` on the shared transport, which adds the current Clerk session token as a bearer token while continuing to omit cookies on cross-origin requests.
+## Structure
 
-`src/generated/contracts` is owned by the backend exporter. Do not hand-edit snapshots; use the backend contract export/check scripts. UI primitives follow Shadcn conventions with installed Radix Slot/CVA utilities.
+```text
+src/app/                  App Router entry points
+src/modules/chats/        chat workspace, API module, query hooks
+src/modules/workspace/    signed-in/signed-out workspace views
+src/components/           shared UI components
+src/lib/                  typed HTTP transport and client config
+src/generated/contracts/  backend-generated Zod contract snapshot
+```
 
-## Future hosting configuration (publication deferred)
+## Data flow
 
-Frontend and backend are independent Next.js applications and require two separate Vercel projects. Use each repository as its project's root. Configure the frontend build's `NEXT_PUBLIC_API_BASE_URL` with the exact backend deployment origin. Configure the backend allowed-origin environment with the exact frontend origin according to the backend README. A preview frontend has a distinct origin: explicitly register that exact preview origin, and rebuild the frontend against its intended backend. Never use wildcard preview allowlists or assume shared cookies. The health call omits credentials.
+```text
+workspace → chat API module → typed HTTP transport → backend
+                              ↘ refresh active messages → live assistant message
+```
 
-No publication, deployment, account creation, paid services or credentials are part of this plan.
+The UI sends a message once and refreshes active messages while the run is in progress. Finished messages are reloaded from the backend, which remains the durable source of truth.

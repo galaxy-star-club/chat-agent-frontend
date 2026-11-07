@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MessageRecord } from "@/generated/contracts/messages";
+import type { RunStatus } from "@/generated/contracts/run";
 import { isTransientError } from "@/lib/http";
 import {
   createChat,
@@ -69,11 +70,16 @@ export function useAgentRun(chatId: string, runId: string | null) {
     queryKey: ["chats", chatId, "runs", runId],
     queryFn: ({ signal }) => getAgentRun(chatId, runId ?? "", signal),
     enabled: Boolean(runId),
-    refetchInterval: false,
+    refetchInterval: (query) => {
+      const status = query.state.data?.data.status;
+      return !status || activeRun.has(status) ? 1_000 : false;
+    },
     retry,
     retryDelay,
   });
 }
+
+const activeRun = new Set<RunStatus>(["pending", "running", "waiting"]);
 
 // The API returns each page oldest-to-newest; reversing only pages keeps a newly arrived message last.
 export function chronologicalMessages(data: { pages: Array<{ data: { items: MessageRecord[] } }> } | undefined): MessageRecord[] {
