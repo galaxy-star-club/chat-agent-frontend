@@ -521,7 +521,7 @@ function SelectedTask({ headingRef, chatId, sidebarOpen, onShowSidebar, confirmI
   const hintedRun = useAgentRun(chatId, hintedRunId);
   const hintedStatus = hintedRun.data?.data.status;
   const pollMessages = Boolean(hintedRunId) && (!hintedStatus || activeStatuses.has(hintedStatus));
-  const messages = useMessages(chatId, 50, { refetchInterval: pollMessages ? 1_000 : false });
+  const messages = useMessages(chatId, 50, { refetchInterval: pollMessages ? 500 : false });
   const historicalRun = useAgentRun(chatId, hintedRunId ? null : latestRunId(chronologicalMessages(messages.data)));
   const run = hintedRunId ? hintedRun : historicalRun;
   const runStatus = run.data?.data.status;
