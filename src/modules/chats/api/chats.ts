@@ -20,7 +20,7 @@ const chatListSchema = apiSuccessSchema(chatListResponseSchema);
 const messageListSchema = apiSuccessSchema(messageListResponseSchema);
 const messageAdmissionSchema = apiSuccessSchema(messageAdmissionResponseSchema);
 const agentRunSchema = apiSuccessSchema(agentRunRecordSchema);
-const deleteChatSchema = apiSuccessSchema(z.unknown());
+const deleteChatSchema = z.void();
 const uploadedAttachmentSchema = z.strictObject({
   id: z.uuid(), filename: z.string(), mediaType: z.string(), byteSize: z.number(), position: z.number(), status: z.enum(["pending", "ready", "failed"]), url: z.url().nullable(),
 });
