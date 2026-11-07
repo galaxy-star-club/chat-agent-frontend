@@ -1,9 +1,11 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MessageRecord } from "@/generated/contracts/messages";
+import type { RunStatus } from "@/generated/contracts/run";
 import { isTransientError } from "@/lib/http";
 import {
   createChat,
   deleteChat,
+  getAgentRun,
   getChat,
   listChats,
   listMessages,
@@ -33,26 +35,47 @@ export function useChats(filters: ChatFilters = {}, options?: { enabled?: boolea
     enabled: options?.enabled ?? true,
     retry,
     retryDelay,
+    refetchOnWindowFocus: false,
   });
 }
 
-export function useChat(chatId: string, options?: { enabled?: boolean }) {
+export function useChat(chatId: string, options?: { enabled?: boolean; refetchWhileActive?: boolean }) {
   return useQuery({
     queryKey: chatQueryKeys.detail(chatId),
     queryFn: ({ signal }) => getChat(chatId, signal),
     enabled: options?.enabled ?? true,
+    refetchInterval: options?.refetchWhileActive
+      ? (query) => (query.state.data?.data.activeRunId ? 1_000 : false)
+      : false,
     retry,
     retryDelay,
   });
 }
 
-export function useMessages(chatId: string, limit = 50, options?: { enabled?: boolean }) {
+export function useMessages(chatId: string, limit = 50, options?: { enabled?: boolean; refetchInterval?: number | false }) {
   return useInfiniteQuery({
     queryKey: chatQueryKeys.messages(chatId, limit),
     queryFn: ({ pageParam, signal }) => listMessages(chatId, { cursor: pageParam, limit }, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.data.pageInfo.nextCursor ?? undefined,
     enabled: options?.enabled ?? true,
+    refetchInterval: options?.refetchInterval,
+    retry,
+    retryDelay,
+  });
+}
+
+const activeRun = new Set<RunStatus>(["pending", "running", "waiting"]);
+
+export function useAgentRun(chatId: string, runId: string | null) {
+  return useQuery({
+    queryKey: ["chats", chatId, "runs", runId],
+    queryFn: ({ signal }) => getAgentRun(chatId, runId ?? "", signal),
+    enabled: Boolean(runId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.data.status;
+      return !status || activeRun.has(status) ? 1_000 : false;
+    },
     retry,
     retryDelay,
   });
@@ -68,7 +91,11 @@ export function useSubmitMessage() {
   return useMutation({
     mutationFn: ({ chatId, ...input }: { chatId: string; idempotencyKey: string; text: string }) => submitMessage(chatId, input),
     retry: false,
-    onSuccess: (response) => client.invalidateQueries({ queryKey: ["chats", response.data.chatId, "messages"] }),
+    onSuccess: (response) => Promise.all([
+      client.invalidateQueries({ queryKey: ["chats", response.data.chatId, "messages"] }),
+      client.invalidateQueries({ queryKey: chatQueryKeys.detail(response.data.chatId) }),
+      client.invalidateQueries({ queryKey: ["chats", response.data.chatId, "runs"] }),
+    ]),
   });
 }
 

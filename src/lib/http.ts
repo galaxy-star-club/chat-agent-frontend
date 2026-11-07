@@ -37,11 +37,11 @@ export async function requestJson<T>(url: string, schema: z.ZodType<T>, options:
   if (options.signal?.aborted) abort();
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, options.timeoutMs ?? 8_000);
   try {
-    const token = options.auth === "session" ? await getToken() : undefined;
+    const token = options.auth === "session" ? await getToken({ skipCache: true }) : undefined;
     const response = await fetch(url, {
       method: options.method,
       signal: controller.signal,
-      credentials: "omit",
+      credentials: options.auth === "session" ? "include" : "omit",
       cache: "no-store",
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       headers: {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowUp, Calendar, Ellipsis, Folder, ListTodo, PanelLeftClose, PanelLeftOpen, Paperclip, Plus, Search, Square, Star, Trash } from "lucide-react";
 import { AppFrame } from "@/components/app-frame";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,8 @@ import { MessageBlocks } from "./message-blocks";
 import { formatClock, formatTaskTime, taskTitle } from "./task-time";
 import {
   chronologicalMessages,
+  chatQueryKeys,
+  useAgentRun,
   useChat,
   useChats,
   useCreateChat,
@@ -22,6 +25,9 @@ import {
   useSubmitMessage,
   type ChatFilters,
 } from "./hooks/use-chats";
+
+type Admission = { chatId: string; runId: string; status: RunStatus };
+const activeStatuses = new Set<RunStatus>(["pending", "running", "waiting"]);
 
 type View = "home" | "tasks" | "conversation";
 const unavailable = [
@@ -68,7 +74,7 @@ export function ConversationWorkspace({ authControls }: { authControls?: React.R
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
-  const [admission, setAdmission] = useState<{ chatId: string; status: RunStatus } | null>(null);
+  const [admission, setAdmission] = useState<Admission | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -247,7 +253,7 @@ export function ConversationWorkspace({ authControls }: { authControls?: React.R
             onAdmitted={(next) => { setAdmission(next); setNotice(runStatusText[next.status]); }}
           />
         ) : (
-          <HomeView headingRef={headingRef} sidebarOpen={sidebarOpen} onShowSidebar={() => setSidebarOpen(true)} listError={recent.isError && !recent.data ? recent.error : undefined} onRetry={() => void recent.refetch()} showClock={isClient} onAdmitted={(next) => { setAdmission(next); setNotice(runStatusText[next.status]); }} />
+          <HomeView headingRef={headingRef} sidebarOpen={sidebarOpen} onShowSidebar={() => setSidebarOpen(true)} listError={recent.isError && !recent.data ? recent.error : undefined} onRetry={() => void recent.refetch()} showClock={isClient} onAdmitted={(next) => { setAdmission(next); setSelectedId(next.chatId); setView("conversation"); setNotice(runStatusText[next.status]); }} />
         )}
       </main>
     </AppFrame>
@@ -266,29 +272,36 @@ function ErrorNote({ error, onRetry, retryLabel, hideRetry = false }: { error: u
   );
 }
 
-function Composer({ placeholder, chatId, onAdmitted }: {
+function Composer({ placeholder, chatId, busy = false, onAdmitted }: {
   placeholder: string;
   chatId?: string;
-  onAdmitted: (admission: { chatId: string; status: RunStatus }) => void;
+  busy?: boolean;
+  onAdmitted: (admission: Admission) => void;
 }) {
   const [text, setText] = useState("");
   const [error, setError] = useState<unknown>(null);
   const intent = useRef<{ text: string; key: string } | null>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const submit = useSubmitMessage();
-  const sending = submit.isPending;
-  const canSend = Boolean(chatId) && text.trim().length > 0 && text.length <= plainTextMaxCharacters && !sending;
+  const create = useCreateChat();
+  const sending = submit.isPending || create.isPending;
+  const canSend = !busy && text.trim().length > 0 && text.length <= plainTextMaxCharacters && !sending;
   const fieldId = chatId ? `composer-${chatId}` : "composer-home";
 
   async function send() {
-    if (!chatId || !canSend) return;
+    if (!canSend) return;
     const value = text;
     const key = intent.current?.text === value ? intent.current.key : crypto.randomUUID();
     intent.current = { text: value, key };
     setError(null);
     try {
-      const response = await submit.mutateAsync({ chatId, idempotencyKey: key, text: value });
-      onAdmitted({ chatId: response.data.chatId, status: response.data.status });
+      let targetId = chatId;
+      if (!targetId) {
+        const created = await create.mutateAsync({});
+        targetId = created.data.id;
+      }
+      const response = await submit.mutateAsync({ chatId: targetId, idempotencyKey: key, text: value });
+      onAdmitted({ chatId: response.data.chatId, runId: response.data.runId, status: response.data.status });
       setText("");
       intent.current = null;
     } catch (sendError) {
@@ -301,7 +314,7 @@ function Composer({ placeholder, chatId, onAdmitted }: {
   return (
     <div role="group" aria-label="Message composer" className="rounded-2xl border border-border bg-card p-3 shadow-sm">
       <label htmlFor={fieldId} className="sr-only">Message</label>
-      <textarea ref={fieldRef} id={fieldId} rows={2} value={text} maxLength={plainTextMaxCharacters} placeholder={placeholder} disabled={sending || !chatId} aria-invalid={error ? true : undefined} aria-describedby={error ? "composer-error" : "composer-note"} onChange={(event) => setText(event.target.value)} className="w-full resize-none bg-transparent px-2 py-1 text-sm outline-none disabled:text-muted-foreground" />
+      <textarea ref={fieldRef} id={fieldId} rows={2} value={text} maxLength={plainTextMaxCharacters} placeholder={placeholder} aria-invalid={error ? true : undefined} aria-describedby={error ? "composer-error" : "composer-note"} onChange={(event) => setText(event.target.value)} className="w-full resize-none bg-transparent px-2 py-1 text-sm outline-none" />
       <div className="flex items-center justify-between">
         <Button type="button" variant="ghost" size="icon" disabled aria-label="Attach a file"><Paperclip aria-hidden="true" className="size-4" /></Button>
         <Button type="button" size="icon" disabled={!canSend} aria-label="Send message" onClick={() => void send()}><ArrowUp aria-hidden="true" className="size-4" /></Button>
@@ -314,13 +327,13 @@ function Composer({ placeholder, chatId, onAdmitted }: {
           <Button type="button" className="mt-2" disabled={sending} onClick={() => void send()}>Retry send</Button>
         </div>
       ) : (
-        <p id="composer-note" className="px-2 text-xs text-muted-foreground">{chatId ? "Attachments are not available yet. Enter adds a new line." : "Open a task before sending a message."}</p>
+        <p id="composer-note" className="px-2 text-xs text-muted-foreground">{busy ? "A reply is in progress." : "Attachments are not available yet. Enter adds a new line."}</p>
       )}
     </div>
   );
 }
 
-function HomeView({ headingRef, sidebarOpen, onShowSidebar, listError, onRetry, showClock, onAdmitted }: { headingRef: React.RefObject<HTMLHeadingElement | null>; sidebarOpen: boolean; onShowSidebar: () => void; listError: unknown; onRetry: () => void; showClock: boolean; onAdmitted: (admission: { chatId: string; status: RunStatus }) => void }) {
+function HomeView({ headingRef, sidebarOpen, onShowSidebar, listError, onRetry, showClock, onAdmitted }: { headingRef: React.RefObject<HTMLHeadingElement | null>; sidebarOpen: boolean; onShowSidebar: () => void; listError: unknown; onRetry: () => void; showClock: boolean; onAdmitted: (admission: Admission) => void }) {
   return (
     <div className="flex flex-1 flex-col overflow-y-auto px-6 py-8">
       {!sidebarOpen && <Button type="button" variant="outline" className="mb-6 self-start" onClick={onShowSidebar}><PanelLeftOpen aria-hidden="true" className="size-4" /> Show sidebar</Button>}
@@ -430,6 +443,14 @@ const runStatusText: Record<RunStatus, string> = {
 const roleLabel = { user: "You", assistant: "Assistant", system: "System", tool: "Tool" } as const;
 const statusLabel = { streaming: "Still streaming", completed: "Completed", failed: "Failed", cancelled: "Cancelled" } as const;
 
+function latestRunId(messages: MessageRecord[]): string | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const runId = messages[index]?.runId;
+    if (runId) return runId;
+  }
+  return null;
+}
+
 function SelectedTask({ headingRef, chatId, sidebarOpen, onShowSidebar, confirmId, onConfirm, onDelete, onFavorite, pendingFavorite, deleting, onBack, admission, onAdmitted }: {
   headingRef: React.RefObject<HTMLHeadingElement | null>;
   chatId: string;
@@ -442,11 +463,30 @@ function SelectedTask({ headingRef, chatId, sidebarOpen, onShowSidebar, confirmI
   pendingFavorite: boolean;
   deleting: boolean;
   onBack: () => void;
-  admission: { chatId: string; status: RunStatus } | null;
-  onAdmitted: (admission: { chatId: string; status: RunStatus }) => void;
+  admission: Admission | null;
+  onAdmitted: (admission: Admission) => void;
 }) {
-  const chat = useChat(chatId);
-  const messages = useMessages(chatId);
+  const client = useQueryClient();
+  const chat = useChat(chatId, { refetchWhileActive: true });
+  const hintedRunId = chat.data?.data.activeRunId ?? admission?.runId ?? null;
+  const hintedRun = useAgentRun(chatId, hintedRunId);
+  const hintedStatus = hintedRun.data?.data.status;
+  const pollMessages = Boolean(hintedRunId) && (!hintedStatus || activeStatuses.has(hintedStatus));
+  const messages = useMessages(chatId, 50, { refetchInterval: pollMessages ? 1_000 : false });
+  const historicalRun = useAgentRun(chatId, hintedRunId ? null : latestRunId(chronologicalMessages(messages.data)));
+  const run = hintedRunId ? hintedRun : historicalRun;
+  const runStatus = run.data?.data.status;
+  const savedTitle = chat.data?.data.title ?? null;
+  useEffect(() => {
+    if (!savedTitle) return;
+    void client.invalidateQueries({ queryKey: ["chats", "list"] });
+  }, [client, savedTitle]);
+  useEffect(() => {
+    if (!runStatus || activeStatuses.has(runStatus)) return;
+    void client.invalidateQueries({ queryKey: chatQueryKeys.detail(chatId) });
+    void client.invalidateQueries({ queryKey: ["chats", "list"] });
+    void client.invalidateQueries({ queryKey: ["chats", chatId, "messages"] });
+  }, [client, chatId, runStatus]);
   if (chat.isLoading) {
     return <div className="px-6 py-8"><p role="status">Loading task…</p></div>;
   }
@@ -465,6 +505,9 @@ function SelectedTask({ headingRef, chatId, sidebarOpen, onShowSidebar, confirmI
   const record = chat.data.data;
   const title = taskTitle(record.title);
   const ordered = chronologicalMessages(messages.data);
+  const displayed = run.data?.data.status ?? admission?.status;
+  const busy = Boolean(record.activeRunId) || (displayed ? activeStatuses.has(displayed) : false);
+  const showStatus = Boolean(displayed) && (displayed !== "completed" || admission?.runId === run.data?.data.id);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-wrap items-center gap-3 border-b border-border px-6 py-4">
@@ -506,8 +549,13 @@ function SelectedTask({ headingRef, chatId, sidebarOpen, onShowSidebar, confirmI
       </section>
       <div className="px-6 pb-6">
         <div className="mx-auto w-full max-w-3xl">
-          {admission && <p role="status" className="mb-3 text-sm text-muted-foreground">{runStatusText[admission.status]}</p>}
-          <Composer placeholder="Send a message..." chatId={chatId} onAdmitted={onAdmitted} />
+          {showStatus && displayed && <p role="status" className="mb-3 text-sm text-muted-foreground">{runStatusText[displayed]}</p>}
+          {run.data?.data.error && displayed && !activeStatuses.has(displayed) && (
+            <div role="alert" className="mb-3 rounded-lg border border-border bg-card p-3 text-sm">
+              <p>{run.data.data.error.message}</p>
+            </div>
+          )}
+          <Composer placeholder="Send a message..." chatId={chatId} busy={busy} onAdmitted={onAdmitted} />
         </div>
       </div>
     </div>

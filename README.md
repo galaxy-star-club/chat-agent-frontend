@@ -1,14 +1,14 @@
 # Agentic Chat frontend
 
-Through Plan 08, signed-in users can send a plain-text message from the conversation workspace. The send stores the user message and shows the run status returned by the API. It does not display an assistant reply. Sign-in stays on Clerk. No uploads, model calls, publication, or deployment were added.
+Signed-in users can send a plain-text message from the conversation workspace. The workspace reloads the persisted run and assistant reply, including partial output and a safe failure message. The browser does not call a model. Sign-in stays on Clerk. No uploads, publication, or deployment were added.
 
 ## Local setup
 
-Use Node.js 24 and pnpm 10.33.2. Install with `pnpm install --frozen-lockfile`. Copy `.env.example` to `.env.local` if needed. Start the separate backend repository on port 3001, then run `pnpm dev` here on port 3000.
+Use Node.js 24 and pnpm 10.33.2. Install with `pnpm install --frozen-lockfile`. Copy `.env.example` to `.env` if needed. Start the separate backend repository on port 3001, then run `pnpm dev` here on port 3000.
 
 `NEXT_PUBLIC_API_BASE_URL` is the public backend **origin**, for example `http://localhost:3001`, without credentials, path, query or fragment. Development defaults to that local origin. Production requires an explicit value at **build time**; missing or invalid values fail the build. Values are embedded in browser bundles and changing them requires a rebuild. Never put secrets in public environment variables.
 
-Create or select a Clerk application, then replace the `.env.local` placeholders for `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` with its development keys. The publishable key is browser-visible; the secret key is server-only and must never use the `NEXT_PUBLIC_` prefix or be committed. Clerk's hosted modal handles sign-in and sign-up, so this plan adds no custom authentication pages.
+Create or select a Clerk application, then replace the `.env` placeholders for `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` with its development keys. The publishable key is browser-visible; the secret key is server-only and must never use the `NEXT_PUBLIC_` prefix or be committed. Clerk's hosted modal handles sign-in and sign-up, so this plan adds no custom authentication pages.
 
 ## Checks
 

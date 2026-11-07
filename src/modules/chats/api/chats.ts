@@ -11,6 +11,7 @@ import {
 } from "@/generated/contracts/chats";
 import { messageAdmissionResponseSchema, messageListResponseSchema, submitMessageRequestSchema } from "@/generated/contracts/messages";
 import { cursorPaginationQuerySchema } from "@/generated/contracts/pagination";
+import { agentRunRecordSchema } from "@/generated/contracts/run";
 import { getApiBaseUrl } from "@/lib/config";
 import { HttpError, requestJson } from "@/lib/http";
 
@@ -18,6 +19,7 @@ const chatResponseSchema = apiSuccessSchema(chatSchema);
 const chatListSchema = apiSuccessSchema(chatListResponseSchema);
 const messageListSchema = apiSuccessSchema(messageListResponseSchema);
 const messageAdmissionSchema = apiSuccessSchema(messageAdmissionResponseSchema);
+const agentRunSchema = apiSuccessSchema(agentRunRecordSchema);
 const deleteChatSchema = apiSuccessSchema(z.unknown());
 
 export type ChatFilters = Partial<Pick<ChatListQuery, "favorite" | "limit" | "query">>;
@@ -71,6 +73,10 @@ export function submitMessage(chatId: string, input: z.input<typeof submitMessag
     body: submitMessageRequestSchema.parse(input),
     timeoutMs: 20_000,
   });
+}
+
+export function getAgentRun(chatId: string, runId: string, signal?: AbortSignal) {
+  return requestJson(apiUrl(`${chatPath(chatId)}/runs/${chatIdSchema.parse(runId)}`), agentRunSchema, { auth: "session", signal });
 }
 
 export function listMessages(chatId: string, input: CursorRequest, signal?: AbortSignal) {
