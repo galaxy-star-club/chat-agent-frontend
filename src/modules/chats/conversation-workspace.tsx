@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import Uppy from "@uppy/core";
 import Transloadit from "@uppy/transloadit";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowUp, Calendar, Ellipsis, Folder, ListTodo, PanelLeftClose, PanelLeftOpen, Paperclip, Plus, Search, Square, Star, Trash } from "lucide-react";
+import { ArrowUp, Calendar, Ellipsis, Folder, ListTodo, PanelLeftClose, PanelLeftOpen, Paperclip, Plus, Search, Sparkles, Square, Star, Trash } from "lucide-react";
 import { AppFrame } from "@/components/app-frame";
 import { Button } from "@/components/ui/button";
 import type { ChatRecord } from "@/generated/contracts/chats";
@@ -155,35 +155,35 @@ export function ConversationWorkspace({ authControls }: { authControls?: React.R
 
   return (
     <AppFrame sidebar={sidebarOpen ? (
-      <aside className="flex w-full shrink-0 flex-col border-b border-border bg-sidebar md:h-full md:w-72 md:overflow-y-auto md:border-r md:border-b-0" aria-label="Sidebar">
-        <div className="flex items-center gap-1 px-3 py-3">
-          <p className="px-2 text-sm font-semibold">Agentic Chat</p>
+      <aside className="flex w-full shrink-0 flex-col border-b border-border bg-sidebar md:h-full md:w-[300px] md:overflow-y-auto md:rounded-2xl md:border" aria-label="Sidebar">
+        <div className="flex items-center gap-1 px-5 py-5">
+          <p className="px-2 text-xl font-semibold tracking-tight">Agentic Chat</p>
           <Button type="button" variant="ghost" size="icon" className="ml-auto" aria-label="Search tasks" onClick={openSearch}><Search aria-hidden="true" className="size-4" /></Button>
           <Button type="button" variant="ghost" size="icon" aria-label="Hide sidebar" onClick={() => setSidebarOpen(false)}><PanelLeftClose aria-hidden="true" className="size-4" /></Button>
         </div>
-        <div className="px-3">
-          <Button type="button" variant="ghost" className="w-full justify-start" onClick={() => void createTask().catch(() => undefined)} disabled={creating.isPending}>
+        <div className="px-4">
+          <Button type="button" variant="ghost" className="h-12 w-full justify-start text-base" onClick={() => void createTask().catch(() => undefined)} disabled={creating.isPending}>
             <Plus aria-hidden="true" className="size-4" /> New task
           </Button>
         </div>
-        <nav aria-label="Sections" className="px-3 py-2">
+        <nav aria-label="Sections" className="px-4 py-3">
           <ul className="space-y-1">
             <li>
-              <Button type="button" variant="ghost" className="w-full justify-start" aria-current={view === "tasks" ? "page" : undefined} onClick={() => setView("tasks")}>
+              <Button type="button" variant="ghost" className="h-12 w-full justify-start text-base" aria-current={view === "tasks" ? "page" : undefined} onClick={() => setView("tasks")}>
                 <ListTodo aria-hidden="true" className="size-4" /> Tasks
               </Button>
             </li>
             {unavailable.map(([label, Icon, message]) => (
               <li key={label}>
-                <Button type="button" variant="ghost" className="w-full justify-start text-muted-foreground" onClick={() => setNotice(message)}>
+              <Button type="button" variant="ghost" className="h-12 w-full justify-start text-base text-muted-foreground" onClick={() => setNotice(message)}>
                   <Icon aria-hidden="true" className="size-4" /> {label}
                 </Button>
               </li>
             ))}
           </ul>
         </nav>
-        <section aria-labelledby="recent-tasks-title" className="px-3 py-2" aria-busy={recent.isFetching}>
-          <h2 id="recent-tasks-title" className="px-2 text-xs font-medium text-muted-foreground">Recent tasks</h2>
+        <section aria-labelledby="recent-tasks-title" className="px-4 py-4" aria-busy={recent.isFetching}>
+          <h2 id="recent-tasks-title" className="px-2 text-sm font-medium text-muted-foreground">Recent tasks</h2>
           {recent.isLoading && <p role="status" className="px-2 py-3 text-sm text-muted-foreground">Loading tasks…</p>}
           {recent.isError && !recent.data && <p className="px-2 py-3 text-sm text-muted-foreground">Recent tasks could not be loaded.</p>}
           {recent.isSuccess && recentChats.length === 0 && <p className="px-2 py-3 text-sm text-muted-foreground">No tasks yet.</p>}
@@ -285,6 +285,7 @@ function Composer({ placeholder, chatId, busy = false, onAdmitted }: {
   const [error, setError] = useState<unknown>(null);
   const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [skillsOpen, setSkillsOpen] = useState(false);
   const intent = useRef<{ text: string; key: string } | null>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -348,14 +349,25 @@ function Composer({ placeholder, chatId, busy = false, onAdmitted }: {
 
   const copy = error ? errorCopy(error) : null;
   return (
-    <div role="group" aria-label="Message composer" className="rounded-2xl border border-border bg-card p-3 shadow-sm">
+    <div role="group" aria-label="Message composer" className="relative rounded-[28px] border border-border bg-card p-5 shadow-sm">
       <label htmlFor={fieldId} className="sr-only">Message</label>
-      <textarea ref={fieldRef} id={fieldId} rows={2} value={text} maxLength={plainTextMaxCharacters} placeholder={placeholder} aria-invalid={error ? true : undefined} aria-describedby={error ? "composer-error" : "composer-note"} onChange={(event) => setText(event.target.value)} className="w-full resize-none bg-transparent px-2 py-1 text-sm outline-none" />
+      <textarea ref={fieldRef} id={fieldId} rows={3} value={text} maxLength={plainTextMaxCharacters} placeholder={placeholder} aria-invalid={error ? true : undefined} aria-describedby={error ? "composer-error" : "composer-note"} onChange={(event) => setText(event.target.value)} className="w-full resize-none bg-transparent px-2 py-1 text-base outline-none placeholder:text-muted-foreground" />
       <div className="flex items-center justify-between">
-        <input ref={fileRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,audio/mpeg,audio/wav,audio/ogg,audio/mp4" multiple onChange={(event) => void upload(event.target.files)} />
-        <Button type="button" variant="ghost" size="icon" disabled={busy || sending || uploading} aria-label="Attach media files" onClick={() => fileRef.current?.click()}><Paperclip aria-hidden="true" className="size-4" /></Button>
-        <Button type="button" size="icon" disabled={!canSend} aria-label="Send message" onClick={() => void send()}><ArrowUp aria-hidden="true" className="size-4" /></Button>
+        <div className="flex items-center gap-1">
+          <input ref={fileRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,audio/mpeg,audio/wav,audio/ogg,audio/mp4" multiple onChange={(event) => void upload(event.target.files)} />
+          <Button type="button" variant="ghost" size="icon" disabled={busy || sending || uploading} aria-label="Attach media files" onClick={() => fileRef.current?.click()}><Paperclip aria-hidden="true" className="size-5" /></Button>
+          <Button type="button" variant="ghost" className="h-10 gap-2 rounded-full px-3" aria-expanded={skillsOpen} aria-controls={`${fieldId}-skills`} onClick={() => setSkillsOpen((open) => !open)}><Sparkles aria-hidden="true" className="size-4" /> Skills</Button>
+        </div>
+        <Button type="button" className="rounded-full" size="icon" disabled={!canSend} aria-label="Send message" onClick={() => void send()}><ArrowUp aria-hidden="true" className="size-4" /></Button>
       </div>
+      {skillsOpen && <div id={`${fieldId}-skills`} className="absolute bottom-16 left-5 z-10 w-80 rounded-2xl border border-border bg-popover p-4 shadow-lg">
+        <p className="font-medium">Skills</p>
+        <p className="mt-1 text-sm text-muted-foreground">The agent loads available skills automatically when your request needs them.</p>
+        <ul className="mt-3 space-y-2 text-sm">
+          <li><span className="font-medium">Video background removal</span><br /><span className="text-muted-foreground">For transparent video cutouts.</span></li>
+          <li><span className="font-medium">Video upscaling</span><br /><span className="text-muted-foreground">For clearer video at 1080p or 4K.</span></li>
+        </ul>
+      </div>}
       {copy ? (
         <div id="composer-error" role="alert" className="px-2 pt-2 text-xs">
           <p className="font-medium">{copy.title}</p>
@@ -375,12 +387,12 @@ function HomeView({ headingRef, sidebarOpen, onShowSidebar, listError, onRetry, 
     <div className="flex flex-1 flex-col overflow-y-auto px-6 py-8">
       {!sidebarOpen && <Button type="button" variant="outline" className="mb-6 self-start" onClick={onShowSidebar}><PanelLeftOpen aria-hidden="true" className="size-4" /> Show sidebar</Button>}
       {listError ? <ErrorNote error={listError} onRetry={onRetry} retryLabel="Retry loading tasks" /> : null}
-      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center text-center">
-        <div aria-hidden="true" className="flex size-12 items-center justify-center rounded-2xl bg-secondary text-lg font-semibold">A</div>
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center text-center">
+        <div aria-hidden="true" className="flex size-14 items-center justify-center rounded-2xl bg-primary text-xl font-semibold text-primary-foreground">A</div>
         <p className="mt-4 min-h-5 text-sm text-muted-foreground">{showClock ? formatClock(new Date()) : ""}</p>
-        <h1 ref={headingRef} tabIndex={-1} className="mt-2 text-3xl font-semibold tracking-tight focus:outline-2 focus:outline-offset-4 focus:outline-ring">Your AI worker</h1>
-        <p className="mt-2 text-muted-foreground">Work at the speed of thought.</p>
-        <div className="mt-8 w-full text-left"><Composer placeholder="Assign a task or ask anything..." onAdmitted={onAdmitted} /></div>
+        <h1 ref={headingRef} tabIndex={-1} className="mt-3 text-4xl font-semibold tracking-tight focus:outline-2 focus:outline-offset-4 focus:outline-ring">Your AI worker</h1>
+        <p className="mt-3 text-lg text-muted-foreground">Work at the speed of thought.</p>
+        <div className="mt-10 w-full text-left"><Composer placeholder="Assign a task or ask anything..." onAdmitted={onAdmitted} /></div>
       </div>
     </div>
   );
